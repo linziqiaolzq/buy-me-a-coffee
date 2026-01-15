@@ -52,8 +52,8 @@ start_service() {
     local pid=$!
     echo $pid >> "$PID_FILE"
     
-    # 等待服务启动（最多等待 10 秒，每 1 秒检查一次）
-    local max_attempts=10
+    # 等待服务启动（最多等待 30 秒，每 1 秒检查一次）
+    local max_attempts=30
     local attempt=0
     local started=false
     
