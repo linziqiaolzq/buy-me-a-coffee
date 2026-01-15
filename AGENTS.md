@@ -1,3 +1,22 @@
+<!-- OPENSPEC:START -->
+# OpenSpec Instructions
+
+These instructions are for AI assistants working in this project.
+
+Always open `@/openspec/AGENTS.md` when the request:
+- Mentions planning or proposals (words like proposal, spec, change, plan)
+- Introduces new capabilities, breaking changes, architecture shifts, or big performance/security work
+- Sounds ambiguous and you need the authoritative spec before coding
+
+Use `@/openspec/AGENTS.md` to learn:
+- How to create and apply change proposals
+- Spec format and conventions
+- Project structure and guidelines
+
+Keep this managed block so 'openspec update' can refresh the instructions.
+
+<!-- OPENSPEC:END -->
+
 # AGENTS.md - AI 助手项目理解指南
 
 > 本文档旨在帮助大语言模型快速理解本项目的架构、代码组织和核心逻辑。
@@ -328,12 +347,15 @@ agent = Agent(
 | `DELIVERY_API_URL` | ❌ | http://localhost:8002 | 配送后端 URL |
 | `COFFEE_A2A_URL` | ❌ | http://localhost:8003 | 咖啡店 A2A URL |
 | `DELIVERY_A2A_URL` | ❌ | http://localhost:8004 | 配送 A2A URL |
+| `QWEN_API_KEY` | ✅** | - | Qwen (通义千问) API 密钥 |
+| `QWEN_MODEL` | ❌ | qwen-plus | Qwen 模型名称（如 qwen-plus, qwen-max, qwen-turbo） |
 | `GOOGLE_API_KEY` | ✅* | - | Google AI API 密钥 |
 | `GOOGLE_MODEL` | ❌ | gemini-2.0-flash | 模型名称 |
 | `API_HOST` | ❌ | 0.0.0.0 | 监听地址 |
 | `FRONTEND_URL` | ❌ | http://localhost:5173 | 前端 URL |
 
-*如果使用 AgentRun 集成则不需要
+*如果使用 AgentRun 集成则不需要  
+**如果使用 Qwen API，需要设置 `QWEN_API_KEY`。如果同时设置了 `QWEN_API_KEY` 和 `AGENTRUN_MODEL_NAME`，优先使用 Qwen 配置。
 
 ## 调试技巧
 

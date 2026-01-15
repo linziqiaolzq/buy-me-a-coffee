@@ -77,8 +77,9 @@ class CopilotKitMessage(BaseModel):
 class CopilotKitRequest(BaseModel):
     """CopilotKit 请求"""
 
-    messages: list[CopilotKitMessage]
+    messages: Optional[list[CopilotKitMessage]] = None
     threadId: Optional[str] = None
+    method: Optional[str] = None  # 支持 CopilotKit 的 method 字段（如 "info"）
 
 
 # ==================== 辅助函数 ====================
@@ -401,6 +402,8 @@ async def chat_stream(request: ChatRequest):
             "data": json.dumps({"session_id": session_id}),
         }
 
+        accumulated_content = ""
+        
         try:
             async for event in runner.run_async(
                 user_id=USER_ID,
@@ -426,16 +429,30 @@ async def chat_stream(request: ChatRequest):
                 if hasattr(event, "content") and event.content:
                     for part in event.content.parts:
                         if hasattr(part, "text") and part.text:
-                            yield {
-                                "event": "message",
-                                "data": json.dumps(
-                                    {
-                                        "type": "text",
-                                        "content": part.text,
-                                        "partial": is_partial,
-                                    }
-                                ),
-                            }
+                            current_text = part.text
+                            
+                            # 检测是否是累积内容
+                            # 如果当前文本以累积内容开头，说明是累积的，需要提取增量
+                            if current_text.startswith(accumulated_content):
+                                incremental_text = current_text[len(accumulated_content):]
+                                accumulated_content = current_text
+                            else:
+                                # 假设是增量内容
+                                incremental_text = current_text
+                                accumulated_content += incremental_text
+                            
+                            # 只发送增量部分（如果有）
+                            if incremental_text:
+                                yield {
+                                    "event": "message",
+                                    "data": json.dumps(
+                                        {
+                                            "type": "text",
+                                            "content": incremental_text,
+                                            "partial": is_partial,
+                                        }
+                                    ),
+                                }
                         if hasattr(part, "function_call") and part.function_call:
                             fc = part.function_call
                             yield {
@@ -508,11 +525,47 @@ async def chat_stream(request: ChatRequest):
 @app.post("/api/copilotkit")
 async def copilotkit_chat(request: CopilotKitRequest):
     """CopilotKit 兼容接口"""
+    # 处理 CopilotKit 的初始化请求（如 method: "info"）
+    if request.method == "info" or (request.messages is None or len(request.messages) == 0):
+        # 获取 root_agent 信息
+        root_agent = get_root_agent()
+        
+        # 构建 agent 信息
+        # CopilotKit 要求 agents 是一个对象（字典），key 是 agent name
+        # 至少需要有一个名为 'default' 的 agent
+        root_agent_description = getattr(root_agent, "description", "智能助手系统")
+        
+        agents = {
+            "default": {
+                "name": "default",
+                "description": root_agent_description,
+            }
+        }
+        
+        # 如果 root_agent 有 name 且不是 'default'，也添加到 agents 中
+        root_agent_name = getattr(root_agent, "name", None)
+        if root_agent_name and root_agent_name != "default":
+            agents[root_agent_name] = {
+                "name": root_agent_name,
+                "description": getattr(root_agent, "description", ""),
+            }
+        
+        return {
+            "status": "ok",
+            "capabilities": {
+                "streaming": True,
+                "tools": True,
+            },
+            "agents": agents,
+        }
+
+    # 处理正常的聊天请求（流式响应）
     user_message = ""
-    for msg in reversed(request.messages):
-        if msg.role == "user":
-            user_message = msg.content
-            break
+    if request.messages:
+        for msg in reversed(request.messages):
+            if msg.role == "user":
+                user_message = msg.content
+                break
 
     if not user_message:
         return JSONResponse(
@@ -541,23 +594,72 @@ async def copilotkit_chat(request: CopilotKitRequest):
         parts=[types.Part(text=user_message)],
     )
 
-    response_text = ""
-    async for event in runner.run_async(
-        user_id=USER_ID,
-        session_id=session_id,
-        new_message=message,
-    ):
-        if hasattr(event, "content") and event.content:
-            for part in event.content.parts:
-                if hasattr(part, "text") and part.text:
-                    response_text += part.text
+    run_config = RunConfig(
+        streaming_mode=StreamingMode.SSE,
+    )
 
-    return {
-        "threadId": session_id,
-        "messages": [
-            {"role": "assistant", "content": response_text},
-        ],
-    }
+    async def generate():
+        """生成 SSE 流式响应（CopilotKit 格式）"""
+        accumulated_content = ""
+        
+        try:
+            async for event in runner.run_async(
+                user_id=USER_ID,
+                session_id=session_id,
+                new_message=message,
+                run_config=run_config,
+            ):
+                # 检查是否是部分响应
+                is_partial = getattr(event, "partial", True)
+                
+                if hasattr(event, "content") and event.content:
+                    for part in event.content.parts:
+                        if hasattr(part, "text") and part.text:
+                            # part.text 在流式模式下应该是增量内容
+                            # 但为了安全，我们检查是否是累积内容
+                            current_text = part.text
+                            
+                            # 如果当前文本包含累积内容，说明是累积的，需要提取增量
+                            if current_text.startswith(accumulated_content):
+                                incremental_text = current_text[len(accumulated_content):]
+                                accumulated_content = current_text
+                            else:
+                                # 否则假设是增量内容
+                                incremental_text = current_text
+                                accumulated_content += incremental_text
+                            
+                            # 只发送增量部分（如果有）
+                            if incremental_text:
+                                yield {
+                                    "event": "message",
+                                    "data": json.dumps({
+                                        "type": "text",
+                                        "content": incremental_text,
+                                        "partial": is_partial,
+                                    }),
+                                }
+        except Exception as e:
+            import traceback
+            yield {
+                "event": "error",
+                "data": json.dumps({
+                    "error": str(e),
+                    "traceback": traceback.format_exc(),
+                }),
+            }
+        
+        # 发送完成消息
+        yield {
+            "event": "done",
+            "data": json.dumps({
+                "threadId": session_id,
+                "messages": [
+                    {"role": "assistant", "content": accumulated_content},
+                ],
+            }),
+        }
+
+    return EventSourceResponse(generate())
 
 
 if __name__ == "__main__":

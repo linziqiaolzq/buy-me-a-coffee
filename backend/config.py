@@ -16,8 +16,13 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 
-# 加载环境变量
-load_dotenv()
+# 项目根目录（在加载环境变量之前确定）
+BASE_DIR = Path(__file__).parent.parent
+
+# 加载环境变量（从项目根目录查找 .env 文件）
+# 尝试从项目根目录和 backend 目录加载
+load_dotenv(dotenv_path=BASE_DIR / ".env")
+load_dotenv(dotenv_path=BASE_DIR / "backend" / ".env")  # 也尝试 backend/.env
 
 
 def get_env_with_default(default_value: str, *env_names: str) -> str:
@@ -29,19 +34,70 @@ def get_env_with_default(default_value: str, *env_names: str) -> str:
     return default_value
 
 
-# AgentRun 集成能力
+# Qwen 模型适配器（模仿 AgentRun 模式）
+def qwen_model(api_key: str, model_name: str = "qwen-plus"):
+    """
+    Qwen 模型适配器，模仿 agentrun.integration.google_adk.model() 的模式
+    
+    注册 Qwen LLM 适配器到 Google ADK 的 LLMRegistry，然后返回模型名称字符串
+    
+    Args:
+        api_key: Qwen API 密钥
+        model_name: Qwen 模型名称，默认 "qwen-plus"
+    
+    Returns:
+        模型名称字符串（Google ADK Agent 接受字符串类型的 model 参数）
+    """
+    import dashscope
+    from google.adk.models.registry import LLMRegistry
+    from shared.qwen_llm import QwenLlm
+    
+    # 设置 dashscope API key
+    dashscope.api_key = api_key
+    
+    # 注册 Qwen LLM 适配器到 Google ADK 的注册表
+    # 注意：这里需要确保只注册一次，所以检查是否已注册
+    try:
+        LLMRegistry.register(QwenLlm)
+    except Exception:
+        # 如果已注册，忽略错误
+        pass
+    
+    # 返回模型名称字符串，Google ADK 会通过 LLMRegistry 解析并找到 QwenLlm 类
+    return model_name
+
+
+# AgentRun 集成能力（向后兼容）
 COFFEE_TOOLSET_NAME = get_env_with_default("", "COFFEE_TOOLSET_NAME")
 DELIVERY_TOOLSET_NAME = get_env_with_default("", "DELIVERY_TOOLSET_NAME")
 from agentrun.integration.google_adk import model, toolset
 
 MODEL_NAME = get_env_with_default("", "MODEL_NAME")
 AGENTRUN_MODEL_NAME = get_env_with_default("", "AGENTRUN_MODEL_NAME")
-DEFAULT_LLM = model(AGENTRUN_MODEL_NAME, model=MODEL_NAME)
+
+# Qwen 配置
+QWEN_API_KEY = get_env_with_default("", "QWEN_API_KEY")
+QWEN_MODEL = get_env_with_default("qwen-plus", "QWEN_MODEL")
+
+# 模型配置优先级：优先使用 Qwen，否则使用 AgentRun（向后兼容）
+if QWEN_API_KEY:
+    # 使用 Qwen 模型（模仿 AgentRun 方式）
+    DEFAULT_LLM = qwen_model(QWEN_API_KEY, QWEN_MODEL)
+elif AGENTRUN_MODEL_NAME:
+    # 使用 AgentRun（向后兼容）
+    DEFAULT_LLM = model(AGENTRUN_MODEL_NAME, model=MODEL_NAME)
+else:
+    # 错误提示
+    raise ValueError(
+        "需要设置 QWEN_API_KEY 或 AGENTRUN_MODEL_NAME 环境变量。"
+        "使用 Qwen: 设置 QWEN_API_KEY 和可选的 QWEN_MODEL（默认: qwen-plus）。"
+        "使用 AgentRun: 设置 AGENTRUN_MODEL_NAME 和可选的 MODEL_NAME。"
+    )
+
 COFFEE_TOOLSET = toolset(COFFEE_TOOLSET_NAME) if COFFEE_TOOLSET_NAME else []
 DEVELIVERY_TOOLSET = toolset(DELIVERY_TOOLSET_NAME) if DELIVERY_TOOLSET_NAME else []
 
-# 项目根目录
-BASE_DIR = Path(__file__).parent.parent
+# 项目根目录（已在上面定义）
 
 # 数据库目录
 DATA_DIR = BASE_DIR / "data"

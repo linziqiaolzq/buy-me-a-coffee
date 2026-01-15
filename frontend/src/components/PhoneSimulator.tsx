@@ -608,6 +608,13 @@ export default function PhoneSimulator({
         </div>
       </div>
 
+      {/* 底部提示文字 - 在手机外框下方 */}
+      <div className='mt-4 w-full px-4'>
+        <p className='text-slate-500 text-sm text-center'>
+          💡 试试说「我要一杯拿铁」或「帮我查一下订单」
+        </p>
+      </div>
+
       {/* 手机底部反光 */}
       <div className='absolute -bottom-4 left-1/2 -translate-x-1/2 w-48 h-4 bg-gradient-to-r from-transparent via-gray-400/20 to-transparent blur-sm' />
     </div>

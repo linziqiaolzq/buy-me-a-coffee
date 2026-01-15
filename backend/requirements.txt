@@ -20,3 +20,6 @@ requests>=2.31.0
 agentrun-sdk[google-adk]>=0.0.7
 alibabacloud_tea_openapi>=0.4.2
 a2a-sdk
+
+# Qwen SDK
+dashscope>=1.0.0

@@ -12,3 +12,7 @@ s_test.yaml
 
 src
 temp
+
+# 分布式部署相关
+logs/
+.distributed_pids

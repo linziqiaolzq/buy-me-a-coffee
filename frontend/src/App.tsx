@@ -3,6 +3,7 @@ import { CopilotKit } from '@copilotkit/react-core';
 import '@copilotkit/react-ui/styles.css';
 import PhoneSimulator from './components/PhoneSimulator';
 import AdminPanel from './components/AdminPanel';
+import ErrorBoundary from './components/ErrorBoundary';
 import { Coffee, Truck, X, Bot } from 'lucide-react';
 import { ENDPOINT } from './utils/config';
 
@@ -272,9 +273,12 @@ function App() {
     setRefreshKey((k) => k + 1);
   };
 
-  return (
-    <CopilotKit runtimeUrl={`${ENDPOINT}/api/copilotkit`}>
-      <div className='h-screen flex flex-col overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900'>
+  // CopilotKit 直接可用（因为功能正常）
+  const copilotKitReady = true;
+
+  // 应用内容（不依赖 CopilotKit）
+  const appContent = (
+    <div className='h-screen flex flex-col overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900'>
         {/* 顶部标题栏 - 简化版 */}
         <header className='relative z-10 px-8 py-4 bg-gradient-to-r from-slate-900/80 to-slate-800/80 backdrop-blur-sm border-b border-slate-700/50'>
           <div className='flex items-center justify-between max-w-[1800px] mx-auto'>
@@ -303,7 +307,7 @@ function App() {
 
             {/* 右侧留空或放其他内容 */}
             <div className='text-slate-400 text-sm'>
-              Powered by <b>AgentRun</b> + Google ADK + A2A Protocol + AGUI +
+              Powered by <b>ComputeNest</b> + Google ADK + A2A Protocol + AGUI +
               CopliotKit
             </div>
           </div>
@@ -319,8 +323,8 @@ function App() {
               <div className='absolute bottom-20 right-20 w-96 h-96 bg-orange-500/10 rounded-full blur-3xl' />
             </div>
 
-            {/* 标签 */}
-            <div className='mb-4 flex items-center gap-3'>
+            {/* 标签 - 在手机上方 */}
+            <div className='mb-3 flex items-center gap-3 relative z-20'>
               <div className='w-3 h-3 rounded-full bg-amber-400 animate-pulse' />
               <h2 className='text-lg font-semibold text-white'>顾客端</h2>
               <span className='text-slate-400 text-sm'>· 手机 App 模拟</span>
@@ -330,11 +334,6 @@ function App() {
             <div className='relative z-10'>
               <PhoneSimulator onOrderCreated={handleOrderCreated} />
             </div>
-
-            {/* 提示文字 */}
-            <p className='mt-4 text-slate-500 text-sm text-center max-w-xs'>
-              💡 试试说「我要一杯拿铁」或「帮我查一下订单」
-            </p>
           </div>
 
           {/* 中间分隔线 */}
@@ -342,8 +341,8 @@ function App() {
 
           {/* 右侧 - 商家后台 */}
           <div className='w-[500px] xl:w-[580px] flex flex-col'>
-            {/* 标签 */}
-            <div className='px-6 py-4 flex items-center gap-3 border-b border-slate-700/50'>
+            {/* 标签 - 确保在顶部可见 */}
+            <div className='px-6 py-4 pt-6 flex items-center gap-3 border-b border-slate-700/50 relative z-20'>
               <div className='w-3 h-3 rounded-full bg-green-400 animate-pulse' />
               <h2 className='text-lg font-semibold text-white'>商家后台</h2>
               <span className='text-slate-400 text-sm'>· 订单管理系统</span>
@@ -404,9 +403,23 @@ function App() {
             onClose={() => setSelectedAgent(null)}
           />
         )}
+
       </div>
-    </CopilotKit>
   );
+
+  // 如果 CopilotKit 可用，包装在 CopilotKit 中；否则直接返回内容
+  if (copilotKitReady) {
+    return (
+      <ErrorBoundary>
+        <CopilotKit runtimeUrl={`${ENDPOINT}/api/copilotkit`}>
+          {appContent}
+        </CopilotKit>
+      </ErrorBoundary>
+    );
+  }
+
+  // 降级处理：即使 CopilotKit 不可用，也显示应用内容
+  return <ErrorBoundary>{appContent}</ErrorBoundary>;
 }
 
 export default App;
