@@ -10,8 +10,9 @@ __pycache__/
 backend/python
 s_test.yaml
 
-src
-temp
+# 忽略根目录下的 src 和 temp，但不忽略 frontend/src
+/src
+/temp
 
 # 分布式部署相关
 logs/
